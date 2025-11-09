@@ -298,6 +298,17 @@
     </table>
 
     <script>
+        const PASSWORD = '*1DiamantE1*'; // Change this to your desired password
+
+window.addEventListener('load', () => {
+    const enteredPassword = prompt('Enter password to access the inventory app:');
+    if (enteredPassword !== PASSWORD) {
+        document.body.innerHTML = '<h1>Access Denied</h1><p>Incorrect password. Reload to try again.</p>';
+        alert('Incorrect password!');
+        return;
+    }
+    // Rest of your app loads only if password is correct
+});
         let editingId = null;
         let nextId = 1;
         let inventory = JSON.parse(localStorage.getItem('inventory') || '[]');
