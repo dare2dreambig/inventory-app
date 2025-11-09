@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f9f9f9;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1000px;
+            margin: 0 auto 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.8em;
+            color: #2c3e50;
+        }
+        .qr-code {
+            width: 80px;
+            height: 80px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 5px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .denied { 
+            text-align: center; 
+            color: red; 
+            font-size: 1.5em; 
+            margin-top: 100px; 
+        }
+
+        /* === CONTROLS === */
+        .controls {
+            max-width: 800px;
+            margin: 0 auto 20px;
+            text-align: center;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .controls button, .controls label {
+            margin: 6px 4px;
+            padding: 10px 14px;
+            font-size: 0.95em;
+        }
+        .controls .auth-row { margin-bottom: 12px; }
+        .controls .sync-row { 
+            display: flex; 
+            justify-content: center; 
+            gap: 10px; 
+            flex-wrap: wrap; 
+        }
+        .controls .import-export-row { margin-top: 12px; }
+
+        /* === SEARCH === */
+        .search-container { 
+            max-width: 800px; 
+            margin: 0 auto 20px; 
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .search-row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .search-group { flex: 1; min-width: 260px; }
+        .search-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .search-group input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; }
+        .button-row { display: flex; gap: 8px; }
+        .button-row button { flex: 1; padding: 8px; font-size: 0.9em; }
+
+        /* === IMPORT === */
+        .import-container { 
+            max-width: 600px; 
+            margin: 0 auto 20px; 
+            text-align: center; 
+        }
+
+        /* === FORM === */
+        .form { 
+            max-width: 900px; 
+            margin: 0 auto 25px; 
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+        }
+        .form-row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .form-row .field { flex: 1; min-width: 220px; }
+        .form-row .field.full-width { flex: 100%; }
+        .form-row .field label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-row .field input, .form-row .field select {
+            width: 100%; padding: 9px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px;
+        }
+        .button-group { 
+            display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; 
+        }
+        .button-group button { 
+            padding: 11px 18px; flex: 1; min-width: 120px; font-weight: bold; 
+            background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer;
+        }
+        .button-group button:hover { background: #2980b9; }
+
+        /* === TABLE === */
+        .table-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            text-align: left; 
+            font-size: 0.95em;
+        }
+        th { 
+            background-color: #34495e; 
+            color: white; 
+            font-weight: bold;
+        }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        td button {
+            margin: 2px;
+            padding: 5px 10px;
+            font-size: 0.85em;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        td button:first-child { background: #27ae60; color: white; }
+        td button:last-child { background: #c0392b; color: white; }
+
+        /* === AUTH STATUS === */
+        #authStatus { color: red; font-weight: bold; }
+        #authStatus.authenticated { color: #27ae60; }
+        button:disabled { 
+            background-color: #ccc !important; 
+            cursor: not-allowed; 
+            opacity: 0.6;
+        }
+    </style>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+    <!-- HEADER WITH QR CODE -->
+    <div class="header">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://192.168.1.100:8000" 
+             alt="QR Code" class="qr-code">
+        <h1>Inventory Management</h1>
+        <div></div> <!-- Spacer -->
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <div class="auth-row">
+            <button id="authButton">Auth with Google Drive</button>
+            <span id="authStatus">Not authenticated</span>
+        </div>
+        <div class="sync-row">
+            <button id="syncButton" disabled>Sync to Google Drive</button>
+            <button id="loadButton" disabled>Load from Google Drive</button>
+        </div>
+        <div class="import-export-row">
+            <label><input type="checkbox" id="autoSync" disabled> Auto-sync</label>
+            <button id="exportCsvButton">Export to CSV</button>
+        </div>
+        <div class="import-container">
+            <label for="importCsv">Import CSV File</label>
+            <input type="file" id="importCsv" accept=".csv">
+            <button id="importButton">Import from CSV</button>
+        </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="search-container">
+        <div class="search-row">
+            <div class="search-group">
+                <label for="searchInput">Search All Fields</label>
+                <input type="text" id="searchInput" placeholder="Description, location, etc...">
+                <div class="button-row">
+                    <button id="searchButton">Search</button>
+                    <button id="resetButton">Reset</button>
+                </div>
+            </div>
+            <div class="search-group">
+                <label for="boxSearchInput">Search by Box Number</label>
+                <input type="text" id="boxSearchInput" placeholder="e.g. 21">
+                <div class="button-row">
+                    <button id="boxSearchButton">Find Box</button>
+                    <button id="clearBoxSearch">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORM -->
+    <div class="form" id="inventoryForm">
+        <!-- Row 1 -->
+        <div class="form-row">
+            <div class="field">
+                <label for="description">Description</label>
+                <input type="text" id="description" placeholder="Enter description">
+            </div>
+            <div class="field">
+                <label for="modelNumber">Model Number</label>
+                <input type="text" id="modelNumber" placeholder="Enter model">
+            </div>
+            <div class="field">
+                <label for="serialNumber">Serial Number</label>
+                <input type="text" id="serialNumber" placeholder="Enter serial">
+            </div>
+        </div>
+        <!-- Row 2 -->
+        <div class="form-row">
+            <div class="field">
+                <label for="location">Location</label>
+                <input type="text" id="location" placeholder="Enter location">
+            </div>
+            <div class="field">
+                <label for="additionalLocation">Additional Location Information</label>
+                <input type="text" id="additionalLocation" placeholder="Enter additional location info">
+            </div>
+        </div>
+        <!-- Row 3 -->
+        <div class="form-row">
+            <div class="field">
+                <label for="inBox">In Box</label>
+                <select id="inBox">
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="boxNumber">Box Number</label>
+                <input type="text" id="boxNumber" placeholder="Enter box number">
+            </div>
+            <div class="field"></div>
+        </div>
+        <!-- Row 4 -->
+        <div class="form-row">
+            <div class="field">
+                <label for="onRack">On Rack</label>
+                <select id="onRack">
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="rackNumber">Rack Number</label>
+                <input type="text" id="rackNumber" placeholder="Enter rack">
+            </div>
+            <div class="field">
+                <label for="shelfNumber">Shelf Number</label>
+                <input type="text" id="shelfNumber" placeholder="Enter shelf">
+            </div>
+        </div>
+        <!-- Row 5 -->
+        <div class="form-row">
+            <div class="field full-width">
+                <label for="notesComments">Notes / Comments</label>
+                <input type="text" id="notesComments" placeholder="Enter notes">
+            </div>
+        </div>
+        <!-- Buttons -->
+        <div class="button-group">
+            <button id="addButton">Add Item</button>
+            <button id="clearFormButton">Clear Form</button>
+            <button id="updateButton" style="display: none;">Update</button>
+            <button id="cancelButton" style="display: none;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-container">
+        <table id="inventoryTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Model Number</th>
+                    <th>Serial Number</th>
+                    <th>Location</th>
+                    <th>Additional Location Information</th>
+                    <th>In Box</th>
+                    <th>Box Number</th>
+                    <th>On Rack</th>
+                    <th>Rack Number</th>
+                    <th>Shelf Number</th>
+                    <th>Notes / Comments</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        // === PASSWORD PROTECTION WITH 24-HOUR MEMORY ===
+        const PASSWORD = '*1DiamantE1*'; // CHANGE THIS!
+
+        window.addEventListener('load', () => {
+            const savedPassword = localStorage.getItem('appPassword');
+            const savedTime = localStorage.getItem('passwordTime');
+            const now = Date.now();
+
+            if (savedPassword === PASSWORD && savedTime && (now - savedTime < 86400000)) {
+                initApp();
+                return;
+            }
+
+            const enteredPassword = prompt('Enter password to access the inventory app:');
+            if (enteredPassword !== PASSWORD) {
+                document.body.innerHTML = `
+                    <div class="denied">
+                        <h1>Access Denied</h1>
+                        <p>Incorrect password. Reload to try again.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            localStorage.setItem('appPassword', PASSWORD);
+            localStorage.setItem('passwordTime', now);
+            initApp();
+        });
+
+        // === MAIN APP ===
+        function initApp() {
+            let editingId = null;
+            let nextId = 1;
+            let inventory = JSON.parse(localStorage.getItem('inventory') || '[]');
+            if (inventory.length > 0) {
+                nextId = Math.max(...inventory.map(item => item.id)) + 1;
+            }
+
+            const CLIENT_ID = '856912895961-fhc14kjeddjhtus01ak5bd18c4uarjba.apps.googleusercontent.com';
+            const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+            let gapiLoaded = false;
+            let tokenClient;
+            let accessToken = null;
+
+            // === FORM FUNCTIONS ===
+            function resetForm() {
+                document.getElementById('description').value = '';
+                document.getElementById('modelNumber').value = '';
+                document.getElementById('serialNumber').value = '';
+                document.getElementById('location').value = '';
+                document.getElementById('additionalLocation').value = '';
+                document.getElementById('inBox').value = 'Yes';
+                document.getElementById('boxNumber').value = '';
+                document.getElementById('onRack').value = 'Yes';
+                document.getElementById('rackNumber').value = '';
+                document.getElementById('shelfNumber').value = '';
+                document.getElementById('notesComments').value = '';
+                document.getElementById('addButton').style.display = 'inline';
+                document.getElementById('updateButton').style.display = 'none';
+                document.getElementById('cancelButton').style.display = 'none';
+                editingId = null;
+            }
+
+            function clearForm() {
+                if (confirm('Clear all fields?')) {
+                    resetForm();
+                    alert('Form cleared.');
+                }
+            }
+
+            function addItem() {
+                const newItem = {
+                    id: nextId++,
+                    Description: document.getElementById('description').value,
+                    ModelNumber: document.getElementById('modelNumber').value,
+                    SerialNumber: document.getElementById('serialNumber').value,
+                    Location: document.getElementById('location').value,
+                    AdditionalLocationInfo: document.getElementById('additionalLocation').value,
+                    InBox: document.getElementById('inBox').value,
+                    BoxNumber: document.getElementById('boxNumber').value,
+                    OnRack: document.getElementById('onRack').value,
+                    RackNumber: document.getElementById('rackNumber').value,
+                    ShelfNumber: document.getElementById('shelfNumber').value,
+                    NotesComments: document.getElementById('notesComments').value
+                };
+                inventory.push(newItem);
+                localStorage.setItem('inventory', JSON.stringify(inventory));
+                displayRecords();
+                if (document.getElementById('autoSync').checked && accessToken) syncToCloud();
+                resetForm();
+            }
+
+            function editRecord(id) {
+                const item = inventory.find(item => item.id === id);
+                if (item) {
+                    editingId = id;
+                    document.getElementById('description').value = item.Description;
+                    document.getElementById('modelNumber').value = item.ModelNumber;
+                    document.getElementById('serialNumber').value = item.SerialNumber;
+                    document.getElementById('location').value = item.Location;
+                    document.getElementById('additionalLocation').value = item.AdditionalLocationInfo || '';
+                    document.getElementById('inBox').value = item.InBox;
+                    document.getElementById('boxNumber').value = item.BoxNumber;
+                    document.getElementById('onRack').value = item.OnRack;
+                    document.getElementById('rackNumber').value = item.RackNumber;
+                    document.getElementById('shelfNumber').value = item.ShelfNumber;
+                    document.getElementById('notesComments').value = item.NotesComments;
+                    document.getElementById('addButton').style.display = 'none';
+                    document.getElementById('updateButton').style.display = 'inline';
+                    document.getElementById('cancelButton').style.display = 'inline';
+                    document.getElementById('inventoryForm').scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+
+            function updateItem() {
+                if (editingId === null) return;
+                const scrollToId = editingId;
+                const updatedItem = {
+                    id: editingId,
+                    Description: document.getElementById('description').value,
+                    ModelNumber: document.getElementById('modelNumber').value,
+                    SerialNumber: document.getElementById('serialNumber').value,
+                    Location: document.getElementById('location').value,
+                    AdditionalLocationInfo: document.getElementById('additionalLocation').value,
+                    InBox: document.getElementById('inBox').value,
+                    BoxNumber: document.getElementById('boxNumber').value,
+                    OnRack: document.getElementById('onRack').value,
+                    RackNumber: document.getElementById('rackNumber').value,
+                    ShelfNumber: document.getElementById('shelfNumber').value,
+                    NotesComments: document.getElementById('notesComments').value
+                };
+                inventory = inventory.map(item => item.id === editingId ? updatedItem : item);
+                localStorage.setItem('inventory', JSON.stringify(inventory));
+                displayRecords();
+                if (document.getElementById('autoSync').checked && accessToken) syncToCloud();
+                resetForm();
+                setTimeout(() => {
+                    const row = document.querySelector(`tr[id="row-${scrollToId}"]`);
+                    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+
+            function cancelEdit() {
+                const previousEditingId = editingId;
+                resetForm();
+                setTimeout(() => {
+                    const row = document.querySelector(`tr[id="row-${previousEditingId}"]`);
+                    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+
+            function deleteRecord(id) {
+                const item = inventory.find(item => item.id === id);
+                if (!item) return;
+                if (window.confirm(`Delete ID ${id}: "${item.Description}"?`)) {
+                    inventory = inventory.filter(item => item.id !== id);
+                    localStorage.setItem('inventory', JSON.stringify(inventory));
+                    displayRecords();
+                    if (document.getElementById('autoSync').checked && accessToken) syncToCloud();
+                }
+            }
+
+            function displayRecords() {
+                const tbody = document.querySelector('#inventoryTable tbody');
+                tbody.innerHTML = '';
+                inventory.forEach(record => {
+                    const row = document.createElement('tr');
+                    row.id = `row-${record.id}`;
+                    row.innerHTML = `
+                        <td>${record.id}</td>
+                        <td>${record.Description}</td>
+                        <td>${record.ModelNumber}</td>
+                        <td>${record.SerialNumber}</td>
+                        <td>${record.Location}</td>
+                        <td>${record.AdditionalLocationInfo || ''}</td>
+                        <td>${record.InBox}</td>
+                        <td>${record.BoxNumber}</td>
+                        <td>${record.OnRack}</td>
+                        <td>${record.RackNumber}</td>
+                        <td>${record.ShelfNumber}</td>
+                        <td>${record.NotesComments}</td>
+                        <td>
+                            <button onclick="editRecord(${record.id})">Edit</button>
+                            <button onclick="deleteRecord(${record.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            function searchInventory() {
+                const term = document.getElementById('searchInput').value.toLowerCase();
+                const filtered = inventory.filter(item =>
+                    Object.values(item).some(val =>
+                        typeof val === 'string' && val.toLowerCase().includes(term)
+                    )
+                );
+                displayFiltered(filtered);
+            }
+
+            function resetSearch() {
+                document.getElementById('searchInput').value = '';
+                displayRecords();
+            }
+
+            function searchByBox() {
+                const boxNum = document.getElementById('boxSearchInput').value.trim();
+                if (!boxNum) {
+                    alert('Please enter a box number');
+                    return;
+                }
+                const filtered = inventory.filter(item => item.BoxNumber && item.BoxNumber.trim() === boxNum);
+                if (filtered.length === 0) {
+                    alert(`No items found in Box ${boxNum}`);
+                }
+                displayFiltered(filtered);
+            }
+
+            function clearBoxSearch() {
+                document.getElementById('boxSearchInput').value = '';
+                displayRecords();
+            }
+
+            function displayFiltered(records) {
+                records.sort((a, b) => {
+                    const boxA = parseInt(a.BoxNumber) || 0;
+                    const boxB = parseInt(b.BoxNumber) || 0;
+                    if (boxA !== boxB) return boxA - boxB;
+                    return a.id - b.id;
+                });
+                const tbody = document.querySelector('#inventoryTable tbody');
+                tbody.innerHTML = '';
+                records.forEach(record => {
+                    const row = document.createElement('tr');
+                    row.id = `row-${record.id}`;
+                    row.innerHTML = `
+                        <td>${record.id}</td>
+                        <td>${record.Description}</td>
+                        <td>${record.ModelNumber}</td>
+                        <td>${record.SerialNumber}</td>
+                        <td>${record.Location}</td>
+                        <td>${record.AdditionalLocationInfo || ''}</td>
+                        <td>${record.InBox}</td>
+                        <td>${record.BoxNumber}</td>
+                        <td>${record.OnRack}</td>
+                        <td>${record.RackNumber}</td>
+                        <td>${record.ShelfNumber}</td>
+                        <td>${record.NotesComments}</td>
+                        <td>
+                            <button onclick="editRecord(${record.id})">Edit</button>
+                            <button onclick="deleteRecord(${record.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            // === CSV IMPORT/EXPORT ===
+            function importCsv() {
+                const fileInput = document.getElementById('importCsv');
+                const file = fileInput.files[0];
+                if (!file) {
+                    alert('Please select a CSV file');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const text = event.target.result;
+                    const rows = text.split('\n').map(row => {
+                        const cols = [];
+                        let current = '', inQuotes = false;
+                        for (let i = 0; i < row.length; i++) {
+                            if (row[i] === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (row[i] === ',' && !inQuotes) {
+                                cols.push(current.trim());
+                                current = '';
+                            } else {
+                                current += row[i];
+                            }
+                        }
+                        cols.push(current.trim());
+                        return cols;
+                    });
+                    const headers = rows[0];
+                    const expectedHeaders = ['Description', 'Model Number', 'Serial Number', 'Location', 'Additional Location Information', 'In Box', 'Box Number', 'On Rack', 'Rack Number', 'Shelf Number', 'Notes / Comments'];
+                    const hasId = headers.length === 12 && headers[0] === 'ID';
+                    if (hasId) expectedHeaders.unshift('ID');
+                    if (headers.length !== expectedHeaders.length || !headers.every((h, i) => h === expectedHeaders[i])) {
+                        alert('Invalid CSV headers. Expected: ' + expectedHeaders.join(', '));
+                        return;
+                    }
+                    inventory = rows.slice(1).filter(row => row.length === headers.length && row[hasId ? 1 : 0].trim()).map((row) => {
+                        const idx = hasId ? 1 : 0;
+                        return {
+                            id: hasId ? parseInt(row[0], 10) : nextId++,
+                            Description: row[idx].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            ModelNumber: row[idx+1].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            SerialNumber: row[idx+2].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            Location: row[idx+3].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            AdditionalLocationInfo: row[idx+4].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            InBox: row[idx+5].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            BoxNumber: row[idx+6].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            OnRack: row[idx+7].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            RackNumber: row[idx+8].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            ShelfNumber: row[idx+9].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                            NotesComments: row[idx+10].replace(/^"|"$/g, '').replace(/""/g, '"')
+                        };
+                    });
+                    nextId = inventory.length > 0 ? Math.max(...inventory.map(i => i.id)) + 1 : 1;
+                    localStorage.setItem('inventory', JSON.stringify(inventory));
+                    displayRecords();
+                    if (document.getElementById('autoSync').checked && accessToken) syncToCloud();
+                    fileInput.value = '';
+                };
+                reader.readAsText(file);
+            }
+
+            document.getElementById('exportCsvButton').addEventListener('click', () => {
+                const headers = ['ID', 'Description', 'Model Number', 'Serial Number', 'Location', 'Additional Location Information', 'In Box', 'Box Number', 'On Rack', 'Rack Number', 'Shelf Number', 'Notes / Comments'];
+                const csv = [headers.join(',')];
+                inventory.forEach(r => {
+                    csv.push([
+                        r.id,
+                        `"${(r.Description || '').replace(/"/g, '""')}"`,
+                        `"${(r.ModelNumber || '').replace(/"/g, '""')}"`,
+                        `"${(r.SerialNumber || '').replace(/"/g, '""')}"`,
+                        `"${(r.Location || '').replace(/"/g, '""')}"`,
+                        `"${(r.AdditionalLocationInfo || '').replace(/"/g, '""')}"`,
+                        r.InBox || '',
+                        `"${(r.BoxNumber || '').replace(/"/g, '""')}"`,
+                        r.OnRack || '',
+                        `"${(r.RackNumber || '').replace(/"/g, '""')}"`,
+                        `"${(r.ShelfNumber || '').replace(/"/g, '""')}"`,
+                        `"${(r.NotesComments || '').replace(/"/g, '""')}"`
+                    ].join(','));
+                });
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `inventory_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            // === GOOGLE DRIVE SYNC ===
+            async function syncToCloud() {
+                const token = localStorage.getItem('google_access_token');
+                if (!token || !gapiLoaded) { alert('Please authenticate'); return; }
+                const jsonData = JSON.stringify(inventory, null, 2);
+                try {
+                    let folderId = null;
+                    const folderRes = await gapi.client.drive.files.list({
+                        q: "name='InventoryApp' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                        fields: 'files(id)'
+                    });
+                    if (folderRes.result.files.length > 0) folderId = folderRes.result.files[0].id;
+                    else {
+                        const folder = await gapi.client.drive.files.create({
+                            resource: { name: 'InventoryApp', mimeType: 'application/vnd.google-apps.folder' },
+                            fields: 'id'
+                        });
+                        folderId = folder.result.id;
+                    }
+                    let fileId = null;
+                    const fileRes = await gapi.client.drive.files.list({
+                        q: `name='inventory.json' and '${folderId}' in parents and trashed=false`,
+                        fields: 'files(id)'
+                    });
+                    if (fileRes.result.files.length > 0) fileId = fileRes.result.files[0].id;
+                    if (!fileId) {
+                        const metadata = { name: 'inventory.json', mimeType: 'application/json', parents: [folderId] };
+                        const boundary = '-------314159265358979323846';
+                        let body = `--${boundary}\r\n`;
+                        body += 'Content-Type: application/json; charset=UTF-8\r\n\r\n';
+                        body += JSON.stringify(metadata) + '\r\n';
+                        body += `--${boundary}\r\n`;
+                        body += 'Content-Type: application/json\r\n\r\n';
+                        body += jsonData + '\r\n';
+                        body += `--${boundary}--`;
+                        await gapi.client.request({
+                            path: '/upload/drive/v3/files',
+                            method: 'POST',
+                            params: { uploadType: 'multipart' },
+                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': `multipart/related; boundary="${boundary}"` },
+                            body: body
+                        });
+                    } else {
+                        await gapi.client.request({
+                            path: `/upload/drive/v3/files/${fileId}`,
+                            method: 'PATCH',
+                            params: { uploadType: 'media' },
+                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            body: jsonData
+                        });
+                    }
+                    alert('Synced to Google Drive');
+                } catch (e) {
+                    console.error(e);
+                    alert('Sync failed');
+                }
+            }
+
+            async function loadFromCloud() {
+                const token = localStorage.getItem('google_access_token');
+                if (!token || !gapiLoaded) { alert('Please authenticate'); return; }
+                try {
+                    const folderRes = await gapi.client.drive.files.list({
+                        q: "name='InventoryApp' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+                        fields: 'files(id)'
+                    });
+                    const folderId = folderRes.result.files.length > 0 ? folderRes.result.files[0].id : null;
+                    const q = folderId ? `name='inventory.json' and '${folderId}' in parents and trashed=false` : "name='inventory.json' and trashed=false";
+                    const res = await gapi.client.drive.files.list({ q, fields: 'files(id)' });
+                    if (res.result.files.length === 0) {
+                        if (inventory.length > 0 && confirm('No file in Drive. Keep local data?')) return;
+                        inventory = [];
+                        localStorage.setItem('inventory', JSON.stringify(inventory));
+                        displayRecords();
+                        return;
+                    }
+                    const fileId = res.result.files[0].id;
+                    const fileRes = await gapi.client.request({
+                        path: `/drive/v3/files/${fileId}`,
+                        method: 'GET',
+                        params: { alt: 'media' }
+                    });
+                    let data = [];
+                    try { data = JSON.parse(fileRes.body || '[]'); } catch { }
+                    if (!Array.isArray(data)) data = [];
+                    inventory = data;
+                    localStorage.setItem('inventory', JSON.stringify(inventory));
+                    nextId = inventory.length > 0 ? Math.max(...inventory.map(i => i.id)) + 1 : 1;
+                    displayRecords();
+                    alert('Loaded from Google Drive');
+                } catch (e) {
+                    console.error(e);
+                    alert('Load failed');
+                }
+            }
+
+            // === GAPI INIT ===
+            function initGapi(attempt = 1, max = 5) {
+                if (typeof gapi === 'undefined') {
+                    if (attempt <= max) setTimeout(() => initGapi(attempt + 1, max), 2000);
+                    return;
+                }
+                gapi.load('client', () => {
+                    gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] }).then(() => {
+                        gapiLoaded = true;
+                        initTokenClient();
+                        checkAuthStatus();
+                    });
+                });
+            }
+
+            function initTokenClient() {
+                if (typeof google === 'undefined') return;
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: (resp) => {
+                        if (resp.error) { updateAuthStatus(false); return; }
+                        accessToken = resp.access_token;
+                        localStorage.setItem('google_access_token', accessToken);
+                        updateAuthStatus(true);
+                        if (document.getElementById('autoSync').checked) syncToCloud();
+                    }
+                });
+            }
+
+            function checkAuthStatus() {
+                accessToken = localStorage.getItem('google_access_token');
+                updateAuthStatus(!!accessToken && gapiLoaded);
+            }
+
+            function updateAuthStatus(auth) {
+                const status = document.getElementById('authStatus');
+                const syncBtn = document.getElementById('syncButton');
+                const loadBtn = document.getElementById('loadButton');
+                const auto = document.getElementById('autoSync');
+                if (auth) {
+                    status.textContent = 'Authenticated';
+                    status.classList.add('authenticated');
+                    syncBtn.disabled = loadBtn.disabled = auto.disabled = false;
+                } else {
+                    status.textContent = 'Not authenticated';
+                    status.classList.remove('authenticated');
+                    syncBtn.disabled = loadBtn.disabled = auto.disabled = true;
+                    auto.checked = false;
+                }
+            }
+
+            // === EVENT LISTENERS ===
+            document.getElementById('authButton').addEventListener('click', () => {
+                if (!gapiLoaded || !tokenClient) { alert('Google API not ready'); return; }
+                tokenClient.requestAccessToken();
+            });
+            document.getElementById('addButton').addEventListener('click', addItem);
+            document.getElementById('updateButton').addEventListener('click', updateItem);
+            document.getElementById('cancelButton').addEventListener('click', cancelEdit);
+            document.getElementById('clearFormButton').addEventListener('click', clearForm);
+            document.getElementById('searchButton').addEventListener('click', searchInventory);
+            document.getElementById('resetButton').addEventListener('click', resetSearch);
+            document.getElementById('boxSearchButton').addEventListener('click', searchByBox);
+            document.getElementById('clearBoxSearch').addEventListener('click', clearBoxSearch);
+            document.getElementById('importButton').addEventListener('click', importCsv);
+            document.getElementById('syncButton').addEventListener('click', syncToCloud);
+            document.getElementById('loadButton').addEventListener('click', loadFromCloud);
+
+            // === START ===
+            initGapi();
+            displayRecords();
+        }
+    </script>
+</body>
+</html>
